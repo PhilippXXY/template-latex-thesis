@@ -42,7 +42,7 @@ jobs:
 
       # Remove any existing status labels and add "status - In Progress"
       - name: Remove any status labels and add "status - In Progress"
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         env:
           ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
         with:
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Remove status labels and set correct status on close
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             // Get the issue details from the event payload
