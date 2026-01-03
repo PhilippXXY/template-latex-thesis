@@ -1,0 +1,166 @@
+name: File Quality Check
+
+on:
+  workflow_call:
+    inputs:
+      check_trailing_whitespace:
+        description: "Check for trailing whitespace in files"
+        type: boolean
+        default: true
+      check_final_newline:
+        description: "Check that files end with a newline"
+        type: boolean
+        default: true
+      check_tabs:
+        description: "Check for tab characters (prefer spaces)"
+        type: boolean
+        default: false
+      include_patterns:
+        description: "Comma-separated file patterns to check"
+        type: string
+        default: "*.tex,*.bib,*.sty,*.cls,*.md,Makefile,latexmkrc"
+      exclude_dirs:
+        description: "Comma-separated directories to exclude"
+        type: string
+        default: ".git,node_modules,build"
+
+  workflow_dispatch:
+    inputs:
+      check_trailing_whitespace:
+        description: "Check for trailing whitespace"
+        type: boolean
+        default: true
+      check_final_newline:
+        description: "Check that files end with newline"
+        type: boolean
+        default: true
+      check_tabs:
+        description: "Check for tab characters"
+        type: boolean
+        default: false
+      include_patterns:
+        description: "Comma-separated file patterns to check"
+        type: string
+        default: "*.tex,*.bib,*.sty,*.cls,*.md,Makefile,latexmkrc"
+      exclude_dirs:
+        description: "Comma-separated directories to exclude"
+        type: string
+        default: ".git,node_modules,build"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run file quality checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PATTERNS="${{ inputs.include_patterns }}"
+          EXCLUDE="${{ inputs.exclude_dirs }}"
+          HAS_ERRORS=false
+
+          # Convert comma-separated patterns to find -name arguments
+          FIND_ARGS=""
+          FIRST=true
+          IFS=',' read -ra PATTERN_ARR <<< "$PATTERNS"
+          for pattern in "${PATTERN_ARR[@]}"; do
+            pattern=$(echo "$pattern" | xargs)
+            if [ "$FIRST" = true ]; then
+              FIND_ARGS="-name \"$pattern\""
+              FIRST=false
+            else
+              FIND_ARGS="$FIND_ARGS -o -name \"$pattern\""
+            fi
+          done
+
+          # Build exclude arguments
+          EXCLUDE_ARGS=""
+          IFS=',' read -ra EXCLUDE_ARR <<< "$EXCLUDE"
+          for dir in "${EXCLUDE_ARR[@]}"; do
+            dir=$(echo "$dir" | xargs)
+            EXCLUDE_ARGS="$EXCLUDE_ARGS -path \"./$dir\" -prune -o"
+          done
+
+          # Get list of files to check
+          FILES=$(eval "find . $EXCLUDE_ARGS -type f \( $FIND_ARGS \) -print" 2>/dev/null || true)
+
+          if [ -z "$FILES" ]; then
+            echo "No files matching patterns found."
+            exit 0
+          fi
+
+          echo "Checking file quality..."
+          echo ""
+
+          # Check trailing whitespace
+          if [ "${{ inputs.check_trailing_whitespace }}" = "true" ]; then
+            echo "=== Trailing Whitespace Check ==="
+            TRAILING_WS_FILES=""
+            for file in $FILES; do
+              if grep -qE '\s+$' "$file" 2>/dev/null; then
+                TRAILING_WS_FILES="$TRAILING_WS_FILES $file"
+                # Show specific lines
+                grep -nE '\s+$' "$file" | head -5 | while read -r line; do
+                  echo "::warning file=$file::Trailing whitespace: $line"
+                done
+              fi
+            done
+            if [ -n "$TRAILING_WS_FILES" ]; then
+              echo "Files with trailing whitespace:$TRAILING_WS_FILES"
+              HAS_ERRORS=true
+            else
+              echo "No trailing whitespace found"
+            fi
+            echo ""
+          fi
+
+          # Check final newline
+          if [ "${{ inputs.check_final_newline }}" = "true" ]; then
+            echo "=== Final Newline Check ==="
+            MISSING_NEWLINE=""
+            for file in $FILES; do
+              if [ -s "$file" ]; then
+                # Check if file ends with newline
+                if [ "$(tail -c 1 "$file" | wc -l)" -eq 0 ]; then
+                  MISSING_NEWLINE="$MISSING_NEWLINE $file"
+                  echo "::warning file=$file::File does not end with a newline"
+                fi
+              fi
+            done
+            if [ -n "$MISSING_NEWLINE" ]; then
+              echo "Files missing final newline:$MISSING_NEWLINE"
+              HAS_ERRORS=true
+            else
+              echo "All files end with newline"
+            fi
+            echo ""
+          fi
+
+          # Check for tabs
+          if [ "${{ inputs.check_tabs }}" = "true" ]; then
+            echo "=== Tab Character Check ==="
+            TAB_FILES=""
+            for file in $FILES; do
+              if grep -qP '\t' "$file" 2>/dev/null; then
+                TAB_FILES="$TAB_FILES $file"
+                echo "::warning file=$file::File contains tab characters"
+              fi
+            done
+            if [ -n "$TAB_FILES" ]; then
+              echo "Files with tabs:$TAB_FILES"
+              HAS_ERRORS=true
+            else
+              echo "No tab characters found"
+            fi
+            echo ""
+          fi
+
+          if [ "$HAS_ERRORS" = true ]; then
+            echo "::error::File quality issues detected. Please fix the warnings above."
+            exit 1
+          fi
+
+          echo "All file quality checks passed!"

@@ -1,0 +1,47 @@
+# Latex
+*.acn
+*.acr
+*.alg
+*.aux
+*.auxlock
+*.bbl
+*.bbl-SAVE-ERROR
+*.blg
+*.bcf
+*.bcf-SAVE-ERROR
+*.dpth
+*.fls
+*.fdb_latexmk
+*.glo
+*.glo-*
+*.gls
+*.gls-*
+*.glsdefs
+*.glstex
+*.glg
+*.glg-*
+*.lof
+*.log
+*.lol
+*.lot
+*.md5
+*.minted
+*.out
+*.pyg
+*.run.xml
+*.slo
+*.slg
+*.sls
+*.synctex(busy)
+*.synctex.gz
+*.toc
+*.xdy
+
+# LaTeX build directory
+thesis/*.pdf
+
+# Mac OS X Finder
+.DS_Store
+
+# VS Code
+.vscode/

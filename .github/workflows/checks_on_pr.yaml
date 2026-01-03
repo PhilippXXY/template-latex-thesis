@@ -1,0 +1,38 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-checks-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  latex-compile:
+    name: LaTeX Compile
+    uses: ./.github/workflows/latex_compile_check.yaml
+    with:
+      make_target: pdf
+      main_tex_for_jobname: thesis/main.tex
+      fail_on_double_questionmark: true
+      upload_pdf: false
+
+  todo-check:
+    name: TODO Check
+    uses: ./.github/workflows/todo_check.yaml
+    with:
+      fail_on_todo: true
+      include_patterns: "*.tex,*.bib,*.sty,*.cls"
+
+  file-quality:
+    name: File Quality
+    uses: ./.github/workflows/file_quality_check.yaml
+    with:
+      check_trailing_whitespace: true
+      check_final_newline: true
+
+  required-files:
+    name: Required Files
+    uses: ./.github/workflows/required_files_check.yaml
+    with:
+      required_files: "thesis/main.tex,Makefile,latexmkrc,README.md"

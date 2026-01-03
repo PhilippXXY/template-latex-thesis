@@ -1,0 +1,101 @@
+name: TODO Check
+
+on:
+  workflow_call:
+    inputs:
+      fail_on_todo:
+        description: "Fail the check if TODO/FIXME comments are found"
+        type: boolean
+        default: true
+      include_patterns:
+        description: "Comma-separated file patterns to check (e.g., '*.tex,*.bib')"
+        type: string
+        default: "*.tex,*.bib,*.sty,*.cls"
+      exclude_dirs:
+        description: "Comma-separated directories to exclude"
+        type: string
+        default: ".git,node_modules"
+
+  workflow_dispatch:
+    inputs:
+      fail_on_todo:
+        description: "Fail the check if TODO/FIXME comments are found"
+        type: boolean
+        default: true
+      include_patterns:
+        description: "Comma-separated file patterns to check"
+        type: string
+        default: "*.tex,*.bib,*.sty,*.cls"
+      exclude_dirs:
+        description: "Comma-separated directories to exclude"
+        type: string
+        default: ".git,node_modules"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for TODO/FIXME comments
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Scanning for TODO/FIXME/HACK/XXX comments..."
+
+          # Build find command with include patterns
+          PATTERNS="${{ inputs.include_patterns }}"
+          EXCLUDE="${{ inputs.exclude_dirs }}"
+
+          # Convert comma-separated patterns to find -name arguments
+          FIND_ARGS=""
+          FIRST=true
+          IFS=',' read -ra PATTERN_ARR <<< "$PATTERNS"
+          for pattern in "${PATTERN_ARR[@]}"; do
+            pattern=$(echo "$pattern" | xargs)  # trim whitespace
+            if [ "$FIRST" = true ]; then
+              FIND_ARGS="-name \"$pattern\""
+              FIRST=false
+            else
+              FIND_ARGS="$FIND_ARGS -o -name \"$pattern\""
+            fi
+          done
+
+          # Build exclude arguments
+          EXCLUDE_ARGS=""
+          IFS=',' read -ra EXCLUDE_ARR <<< "$EXCLUDE"
+          for dir in "${EXCLUDE_ARR[@]}"; do
+            dir=$(echo "$dir" | xargs)  # trim whitespace
+            EXCLUDE_ARGS="$EXCLUDE_ARGS -path \"./$dir\" -prune -o"
+          done
+
+          # Find files and search for markers
+          FOUND_ISSUES=false
+          ISSUE_COUNT=0
+
+          # Use eval to properly handle the quoted patterns
+          eval "find . $EXCLUDE_ARGS -type f \( $FIND_ARGS \) -print" | while read -r file; do
+            # Search for TODO, FIXME, HACK, XXX (case insensitive)
+            if grep -inE '\b(TODO|FIXME|HACK|XXX)\b' "$file" 2>/dev/null; then
+              echo "::warning file=$file::Found TODO/FIXME marker in $file"
+            fi
+          done > todo_results.txt 2>&1 || true
+
+          if [ -s todo_results.txt ]; then
+            echo ""
+            echo "===== TODO/FIXME Comments Found ====="
+            cat todo_results.txt
+            ISSUE_COUNT=$(wc -l < todo_results.txt)
+            echo ""
+            echo "Total: $ISSUE_COUNT occurrence(s) found"
+
+            if [ "${{ inputs.fail_on_todo }}" = "true" ]; then
+              echo "::error::Found $ISSUE_COUNT TODO/FIXME comment(s). Please resolve them before merging."
+              exit 1
+            else
+              echo "::warning::Found $ISSUE_COUNT TODO/FIXME comment(s)."
+            fi
+          else
+            echo "No TODO/FIXME comments found."
+          fi

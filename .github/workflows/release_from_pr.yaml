@@ -1,0 +1,113 @@
+name: Create Release from PR
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+concurrency:
+  group: release-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-pdf:
+    if: github.event.pull_request.merged == true
+    uses: ./.github/workflows/latex_compile_check.yaml
+    with:
+      make_target: pdf
+      main_tex_for_jobname: thesis/main.tex
+      fail_on_double_questionmark: true
+      upload_pdf: true
+
+  release:
+    needs: build-pdf
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract version from PR title
+        id: version
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          echo "PR title: $title"
+
+          # Accept (v1.2.3, v01.02.300, v1.2.3-alpha) and the same without 'v'
+          if echo "$title" | grep -Eq '^v[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z.-]+)?$'; then
+            version="$title"
+          elif echo "$title" | grep -Eq '^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z.-]+)?$'; then
+            version="v$title"
+          else
+            echo "PR title is not a valid version (expected vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z, got: $title)"
+            exit 1
+          fi
+
+          echo "Using version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create git tag for merge commit
+        id: tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if tag already exists and auto-increment if needed
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::notice::Tag $VERSION already exists, finding next available version..."
+
+            # Extract base version (e.g., v1.2 from v1.2.3 or v1.2.3-alpha)
+            # Handle both vX.Y.Z and vX.Y.Z-suffix formats
+            BASE_VERSION=$(echo "$VERSION" | sed -E 's/^(v[0-9]+\.[0-9]+\.)[0-9]+(-.*)?$/\1/')
+            SUFFIX=$(echo "$VERSION" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$/\1/')
+
+            # Find the highest existing patch version with this base
+            HIGHEST_PATCH=0
+            for tag in $(git tag -l "${BASE_VERSION}*"); do
+              # Extract patch number, handling optional suffix
+              PATCH=$(echo "$tag" | sed -E 's/^v[0-9]+\.[0-9]+\.([0-9]+)(-.*)?$/\1/')
+              if [[ "$PATCH" =~ ^[0-9]+$ ]] && [ "$PATCH" -gt "$HIGHEST_PATCH" ]; then
+                HIGHEST_PATCH=$PATCH
+              fi
+            done
+
+            # Increment patch version
+            NEW_PATCH=$((HIGHEST_PATCH + 1))
+            VERSION="${BASE_VERSION}${NEW_PATCH}${SUFFIX}"
+            echo "::notice::Using incremented version: $VERSION"
+          fi
+
+          echo "Tagging commit $MERGE_SHA with $VERSION"
+          git tag "$VERSION" "$MERGE_SHA"
+          git push origin "$VERSION"
+
+          echo "final_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download PDF artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: thesis-pdf
+          path: ./release
+
+      - name: List downloaded files
+        run: ls -la ./release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.final_version }}
+          name: ${{ steps.tag.outputs.final_version }}
+          generate_release_notes: true
+          files: ./release/*.pdf
+          draft: false
+          prerelease: false

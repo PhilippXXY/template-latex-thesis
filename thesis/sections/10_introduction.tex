@@ -1,0 +1,27 @@
+%% ----------------
+%% | Introduction |
+%% ----------------
+\chapter{Introduction}
+\label{ch:Introduction}
+
+\glsresetall
+
+\section{Abbreviations}
+\label{sec:Introduction:Abbreviations}
+This thesis uses abbreviations from a \texttt{.bib} file via \texttt{@abbreviation} entries.
+For example: \gls{a:ecu}. If a sentence starts with a glossary entry, use \verb|\Gls| instead of \verb|\gls|.
+\Glspl{a:ecu} are common in embedded systems.
+
+You can also call the abbreviations directly like this:
+\begin{itemize}
+    \item long (lowercase): \abbrLongLC{a:ecu}
+    \item long (Title Case): \abbrLongTC{a:ecu}
+\end{itemize}
+
+\section{Symbol}
+\label{sec:Introduction:Symbol}
+A symbol example: expected bytes per polling interval is \sym{s:bytes_event_per_ecu} with unit \symUnit{s:bytes_event_per_ecu}.
+
+\section{Citation}
+\label{sec:Introduction:Citation}
+IEEE citation example: Shannon’s paper \cite{shannon1948}.

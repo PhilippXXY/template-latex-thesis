@@ -1,0 +1,80 @@
+name: Required Files Check
+
+on:
+  workflow_call:
+    inputs:
+      required_files:
+        description: "Comma-separated list of required files (relative paths)"
+        type: string
+        default: "thesis/main.tex,Makefile,latexmkrc,README.md"
+      required_dirs:
+        description: "Comma-separated list of required directories"
+        type: string
+        default: "thesis,thesis/sections,thesis/frontmatter,thesis/backmatter,thesis/bibliography"
+
+  workflow_dispatch:
+    inputs:
+      required_files:
+        description: "Comma-separated list of required files"
+        type: string
+        default: "thesis/main.tex,Makefile,latexmkrc,README.md"
+      required_dirs:
+        description: "Comma-separated list of required directories"
+        type: string
+        default: "thesis,thesis/sections,thesis/frontmatter,thesis/backmatter,thesis/bibliography"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required files and directories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MISSING_FILES=""
+          MISSING_DIRS=""
+          HAS_ERRORS=false
+
+          echo "=== Checking Required Files ==="
+          IFS=',' read -ra FILES <<< "${{ inputs.required_files }}"
+          for file in "${FILES[@]}"; do
+            file=$(echo "$file" | xargs)  # trim whitespace
+            if [ -z "$file" ]; then continue; fi
+
+            if [ -f "$file" ]; then
+              echo "$file"
+            else
+              echo "$file (MISSING)"
+              echo "::error file=$file::Required file is missing: $file"
+              MISSING_FILES="$MISSING_FILES $file"
+              HAS_ERRORS=true
+            fi
+          done
+          echo ""
+
+          echo "=== Checking Required Directories ==="
+          IFS=',' read -ra DIRS <<< "${{ inputs.required_dirs }}"
+          for dir in "${DIRS[@]}"; do
+            dir=$(echo "$dir" | xargs)  # trim whitespace
+            if [ -z "$dir" ]; then continue; fi
+
+            if [ -d "$dir" ]; then
+              echo "$dir/"
+            else
+              echo "$dir/ (MISSING)"
+              echo "::error::Required directory is missing: $dir"
+              MISSING_DIRS="$MISSING_DIRS $dir"
+              HAS_ERRORS=true
+            fi
+          done
+          echo ""
+
+          if [ "$HAS_ERRORS" = true ]; then
+            echo "::error::Required files or directories are missing!"
+            exit 1
+          fi
+
+          echo "All required files and directories present!"

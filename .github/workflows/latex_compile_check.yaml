@@ -1,0 +1,211 @@
+name: LaTeX Compile Check
+
+on:
+  workflow_call:
+    inputs:
+      make_target:
+        type: string
+        default: pdf
+      main_tex_for_jobname:
+        type: string
+        default: thesis/main.tex
+      fail_on_double_questionmark:
+        type: boolean
+        default: true
+      upload_pdf:
+        type: boolean
+        default: false
+    outputs:
+      pdf_path:
+        description: "Generated PDF path"
+        value: ${{ jobs.build.outputs.pdf_path }}
+
+  workflow_dispatch:
+    inputs:
+      make_target:
+        description: "Make target to run"
+        type: choice
+        options:
+          - pdf
+        default: pdf
+      main_tex_for_jobname:
+        description: "Path to main.tex for extracting jobname"
+        type: string
+        default: thesis/main.tex
+      fail_on_double_questionmark:
+        description: "Fail if PDF contains '??' (missing references)"
+        type: boolean
+        default: true
+      upload_pdf:
+        description: "Upload the PDF as an artifact"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      pdf_path: ${{ steps.out.outputs.pdf_path }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract jobname from thesis/main.tex
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # For workflow_call, prefer the input path; for workflow_dispatch, default to thesis/main.tex
+          MAIN_TEX="${{ inputs.main_tex_for_jobname }}"
+          if [ -z "${MAIN_TEX}" ]; then
+            MAIN_TEX="thesis/main.tex"
+          fi
+
+          # GNU sed (Ubuntu) compatible extraction
+          JOBNAME="$(
+            sed -n 's/^[[:space:]]*\\newcommand{\\ThesisPdfJobname}{\([^}]*\)}.*/\1/p' "$MAIN_TEX" \
+            | head -n 1
+          )"
+
+          if [ -z "${JOBNAME// }" ]; then
+            JOBNAME="main"
+          fi
+
+          echo "jobname=$JOBNAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build via Makefile (auto-install missing TeX packages)
+        uses: xu-cheng/texlive-action@v3
+        with:
+          docker_image: ghcr.io/xu-cheng/texlive-small:latest
+          run: |
+            set -euo pipefail
+
+            # Install system dependencies (Java needed for bib2gls)
+            apk add --no-cache make poppler-utils perl openjdk11-jre
+
+            # Update tlmgr once (can be slow but ensures packages are findable)
+            tlmgr update --self --all || true
+
+            # Build loop: install missing TeX files reported by LaTeX, then retry.
+            # Limit retries to avoid infinite loops.
+            MAX_TRIES=6
+            TRY=1
+
+            while [ $TRY -le $MAX_TRIES ]; do
+                echo "=== Build attempt $TRY/$MAX_TRIES ==="
+
+                # Clean before each attempt to ensure latexmk retries properly
+                make distclean || true
+
+                # Try to build, capture output
+                set +e
+                make ${{ inputs.make_target }} 2>&1 | tee build.log
+                RC=${PIPESTATUS[0]}
+                set -e
+
+                # Success -> stop
+                if [ $RC -eq 0 ]; then
+                echo "Build succeeded."
+                break
+                fi
+
+                TO_INSTALL=""
+
+                # Pattern 1: Missing .sty, .cls, .def, .cfg files
+                # Example: "! LaTeX Error: File `siunitx.sty' not found."
+                MISSING_FILES="$(
+                grep -oE "File \`[^']+\.(sty|cls|def|cfg)'" build.log \
+                | sed -e "s/^File \`//" -e "s/'$//" \
+                | sort -u || true
+                )"
+                for f in $MISSING_FILES; do
+                pkg="$(tlmgr search --global --file "/$f" 2>/dev/null | awk -F: '/:$/ {print $1; exit}')"
+                if [ -n "$pkg" ]; then
+                    TO_INSTALL="$TO_INSTALL $pkg"
+                fi
+                done
+
+                # Pattern 2: Missing biblatex styles (.bbx/.cbx)
+                # Example: "Package biblatex Error: Style 'ieee' not found."
+                MISSING_STYLES="$(
+                grep -oE "Style '[^']+' not found" build.log \
+                | sed -e "s/^Style '//" -e "s/' not found$//" \
+                | sort -u || true
+                )"
+                for style in $MISSING_STYLES; do
+                # biblatex styles are usually in packages named biblatex-<style>
+                pkg="biblatex-${style}"
+                TO_INSTALL="$TO_INSTALL $pkg"
+                done
+
+                # Pattern 3: Missing commands (like bib2gls)
+                # Example: "Can't exec "bib2gls": No such file or directory"
+                MISSING_CMDS="$(
+                grep -oE "Can't exec \"[^\"]+\"" build.log \
+                | sed -e 's/^Can'\''t exec "//' -e 's/"$//' \
+                | sort -u || true
+                )"
+                for cmd in $MISSING_CMDS; do
+                # Many TeX tools share name with their package
+                TO_INSTALL="$TO_INSTALL $cmd"
+                done
+
+                # Deduplicate package list
+                TO_INSTALL="$(echo "$TO_INSTALL" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')"
+
+                if [ -z "$TO_INSTALL" ]; then
+                echo "Build failed, but no missing package pattern detected."
+                exit $RC
+                fi
+
+                echo "Installing TeX Live packages:$TO_INSTALL"
+                tlmgr install $TO_INSTALL
+
+                TRY=$((TRY+1))
+            done
+
+            if [ $TRY -gt $MAX_TRIES ]; then
+                echo "Exceeded max tries ($MAX_TRIES)."
+                exit 1
+            fi
+
+            # Determine jobname (parse TeX) and check PDF + "??"
+            MAIN_TEX="${{ inputs.main_tex_for_jobname }}"
+            [ -n "$MAIN_TEX" ] || MAIN_TEX="thesis/main.tex"
+            JOBNAME="$(
+                sed -n 's/^[[:space:]]*\\newcommand{\\ThesisPdfJobname}{\([^}]*\)}.*/\1/p' "$MAIN_TEX" \
+                | head -n 1
+            )"
+            if [ -z "${JOBNAME// }" ]; then JOBNAME="main"; fi
+
+            PDF="thesis/main.pdf"
+            test -f "$PDF"
+
+            # Rename PDF to use custom jobname if different from main
+            if [ "$JOBNAME" != "main" ]; then
+                cp "$PDF" "thesis/${JOBNAME}.pdf"
+            fi
+
+            # Check for unresolved references if enabled
+            if [ "${{ inputs.fail_on_double_questionmark }}" = "true" ]; then
+                if pdftotext "$PDF" - | grep -nF '??'; then
+                    echo "::error::Found '??' in PDF output (often unresolved glossary/refs)."
+                    exit 1
+                fi
+            fi
+
+      - name: Export pdf_path output
+        id: out
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "pdf_path=thesis/${{ steps.vars.outputs.jobname }}.pdf" >> "$GITHUB_OUTPUT"
+
+      - name: Upload PDF artifact
+        if: ${{ inputs.upload_pdf }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: thesis-pdf
+          path: thesis/${{ steps.vars.outputs.jobname }}.pdf
+          retention-days: 1

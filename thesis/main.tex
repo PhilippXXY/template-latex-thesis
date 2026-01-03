@@ -1,0 +1,120 @@
+% thesis/main.tex
+\documentclass[12pt,a4paper]{report}
+
+% -----------------------------
+% "Project metadata" (useful for build tooling)
+% NOTE: TeX itself cannot change the output PDF filename; the build tool must
+% pass -jobname=<...>. Keep the desired name here so latexmk/CI can read it.
+% -----------------------------
+\newcommand{\ThesisPdfJobname}{latex-thesis-template} % <-- use this in latexmk/CI (-jobname)
+\newcommand{\ThesisTitle}{Latex Thesis Template}
+\newcommand{\ThesisAuthor}{Philipp Schmidt}
+\newcommand{\ThesisDate}{\today}
+
+% -----------------------------
+% Basics
+% -----------------------------
+\usepackage[margin=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc} % ok with pdflatex; remove if you switch to lualatex/xelatex
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{hyperref}
+
+% Units (for symbol "unit" field content)
+\usepackage{siunitx}
+
+% -----------------------------
+% Glossary / abbreviations / symbols (bib2gls workflow)
+% -----------------------------
+% - record: enables the "record" indexing approach that bib2gls uses :contentReference[oaicite:0]{index=0}
+% - abbreviations: creates a dedicated "abbreviations" glossary type :contentReference[oaicite:1]{index=1}
+% - symbols: creates a dedicated "symbols" glossary type :contentReference[oaicite:2]{index=2}
+\usepackage[record,abbreviations,symbols]{glossaries-extra}
+
+% Pick how abbreviations appear in running text (first vs later use).
+% Must be set before abbreviations are defined/loaded. :contentReference[oaicite:3]{index=3}
+\setabbreviationstyle{long-short}
+
+% Abbreviations: load into the abbreviations glossary type
+\GlsXtrLoadResources[
+  src={glossary/abbreviations},
+  type=\glsxtrabbrvtype,
+  selection=all,
+  field-aliases={
+    long_lowercase=long,
+    long_titlecase=user1
+  }
+]
+
+% Symbols: load into the symbols glossary type
+\GlsXtrLoadResources[
+  src={glossary/symbols},
+  type=symbols,
+  selection=all,
+  field-aliases={
+    symbol=name,
+    unit=user1
+  }
+]
+
+
+
+% Convenience helpers:
+\newcommand{\abbrLongLC}[1]{\glsentrylong{#1}}        % long (lowercase, from long_lowercase)
+\newcommand{\abbrLongTC}[1]{\glsentryuseri{#1}}       % long (Title Case, from long_titlecase)
+\newcommand{\symUnit}[1]{\glsentryuseri{#1}}          % unit (from unit)
+\newcommand{\sym}[1]{\gls{#1}}                        % show symbol via \gls
+
+% -----------------------------
+% Bibliography (IEEE)
+% -----------------------------
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{bibliography/literature.bib}
+
+% -----------------------------
+% Document
+% -----------------------------
+\title{\ThesisTitle}
+\author{\ThesisAuthor}
+\date{\ThesisDate}
+
+\begin{document}
+
+\pagenumbering{roman}
+\maketitle
+
+% Abstract (in the repo structure: thesis/frontmatter/abstract.tex)
+\input{frontmatter/abstract}
+
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+% Introduction (in the repo structure: thesis/sections/10_introduction.tex)
+\input{sections/10_introduction.tex}
+
+\clearpage
+\printbibliography
+
+% Decide whether to display a glossary list or not
+% Lists (glossaries)
+% \printunsrtglossary[
+%   type=\glsxtrabbrvtype,
+%   title={List of Abbreviations},
+%   toctitle={List of Abbreviations}
+% ]
+
+% \printunsrtglossary[
+%   type=symbols,
+%   style=indexgroup,
+%   title={List of Symbols},
+%   toctitle={List of Symbols}
+% ]
+
+% Appendix (in the repo structure: thesis/backmatter/appendix.tex)
+\appendix
+\input{backmatter/appendix}
+
+\end{document}
