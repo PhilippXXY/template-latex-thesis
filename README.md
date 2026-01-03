@@ -60,7 +60,7 @@ When you create a pull request, the following automated checks run:
 
 ### Issue Management
 
-- **Status Labels**: Automatically updates issue status labels when you create a branch (sets "status - In Progress") or close an issue (sets "status - Done")
+- **Status Labels**: Automatically updates issue status labels when you create a branch (sets "status - In Progress") or close an issue (sets "status - Done"). To work on this issue, you’ll need to create a new branch directly from it.
 
 ### Release Automation
 
