@@ -204,7 +204,7 @@ jobs:
 
       - name: Upload PDF artifact
         if: ${{ inputs.upload_pdf }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: thesis-pdf
           path: thesis/${{ steps.vars.outputs.jobname }}.pdf
