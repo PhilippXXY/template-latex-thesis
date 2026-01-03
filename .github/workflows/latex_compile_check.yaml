@@ -48,7 +48,7 @@ jobs:
       pdf_path: ${{ steps.out.outputs.pdf_path }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Extract jobname from thesis/main.tex
         id: vars
