@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build-pdf:
@@ -111,3 +112,18 @@ jobs:
           files: ./release/*.pdf
           draft: false
           prerelease: false
+
+      - name: Add label to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          LABEL="filter - version"
+
+          # Check if label already exists on PR
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -q "^${LABEL}$"; then
+            echo "Label '$LABEL' already exists on PR #$PR_NUMBER"
+          else
+            echo "Adding label '$LABEL' to PR #$PR_NUMBER"
+            gh pr edit "$PR_NUMBER" --add-label "$LABEL"
+          fi
