@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: aspell-check
         name: Check spelling
-        entry: bash -c 'for f in "$@"; do WORDS=$(aspell --mode=tex --lang=en list < "$f" 2>/dev/null | sort -u); if [ -n "$WORDS" ]; then echo "$f:"; echo "$WORDS" | head -10 | sed "s/^/  /"; fi; done'
+        entry: bash -c 'HAS_ERRORS=false; for f in "$@"; do WORDS=$(aspell --mode=tex --lang=en --conf=./.aspell.conf list < "$f" 2>/dev/null | sort -u); if [ -n "$WORDS" ]; then echo "$f:"; echo "$WORDS" | head -10 | sed "s/^/  /"; HAS_ERRORS=true; fi; done; if [ "$HAS_ERRORS" = "true" ]; then echo ""; echo "Add valid words to aspell-project.dict"; exit 1; fi'
         language: system
         files: \.tex$
         verbose: true
