@@ -156,24 +156,24 @@ When you create a new repository from this template, the `setup-repository.yaml`
 1. **Create a Personal Access Token (PAT)**:
    - Go to https://github.com/settings/tokens/new
    - Name it (e.g., "LaTeX Template Setup")
-   - Set expiration (e.g., 90 days)
-   - Select scopes:
-     - `repo` (Full control of private repositories)
-     - `admin:repo` (Full control of repository settings)
-   - Click "Generate token" and copy it
+   - Set expiration (e.g., 90 days or "No expiration" for long-term use)
+   - Select the **`repo`** scope (this includes all repository permissions including administration)
+     - This will automatically select all sub-scopes like `repo:status`, `repo_deployment`, etc.
+   - Click "Generate token" and **copy it immediately**
 
 2. **Add the token as a repository secret**:
-   - Go to your repository → Settings → Secrets and variables → Actions
-   - Click "New repository secret"
+   - In your new repository, go to **Settings** → **Secrets and variables** → **Actions**
+   - Click "**New repository secret**"
    - Name: `ADMIN_TOKEN`
    - Value: Paste your PAT
-   - Click "Add secret"
+   - Click "**Add secret**"
 
 3. **Trigger the setup workflow**:
-   - Go to Actions → Setup Repository → Run workflow
-   - Or push a commit to trigger it automatically
+   - Go to **Actions** tab → **Setup Repository** workflow → **Run workflow**
+   - Or push any commit to the `dev` branch to trigger it automatically
+   - Check the workflow output to confirm settings were applied
 
-**Without `ADMIN_TOKEN`**: The workflow will show a warning and settings must be configured manually in repository Settings.
+**Without `ADMIN_TOKEN`**: The workflow will display a warning and you must configure settings manually in repository Settings.
 
 **For private repositories**: Also requires GitHub Pro/Team/Enterprise plan for rulesets (branch/tag protection).
 
