@@ -1,3 +1,8 @@
+# Reusable workflow to perform LaTeX document hygiene checks:
+# - Unused bibliography entries
+# - Duplicate bibliography keys
+# - Undefined glossary entries
+# - Unresolved citations
 name: Hygiene Checks
 
 on:

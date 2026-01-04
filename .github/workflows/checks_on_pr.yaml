@@ -1,3 +1,5 @@
+# Main workflow that orchestrates all quality checks for pull requests
+# Runs LaTeX compilation, spell check, hygiene checks, TODO checks, file quality, and required files checks
 name: PR Checks
 
 on:

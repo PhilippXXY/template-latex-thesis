@@ -1,3 +1,7 @@
+# Reusable workflow to check spelling in LaTeX files using aspell
+# - Uses project-specific dictionary (aspell-project.dict)
+# - Supports custom language and file patterns
+# - Can optionally fail on spelling errors
 name: Spell Check
 
 on:

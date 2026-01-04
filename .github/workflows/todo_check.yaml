@@ -1,3 +1,7 @@
+# Reusable workflow to find TODO/FIXME/HACK/XXX comments in code
+# - Scans specified file patterns for development markers
+# - Can optionally fail the check if markers are found
+# - Useful for ensuring all tasks are completed before release
 name: TODO Check
 
 on:

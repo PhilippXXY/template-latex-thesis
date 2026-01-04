@@ -1,3 +1,7 @@
+# Workflow that automatically creates a GitHub release when a PR is merged to main
+# - Extracts version from PR title (expects vX.Y.Z or X.Y.Z format)
+# - Builds the PDF
+# - Creates a GitHub release with the PDF attached
 name: Create Release from PR
 
 on:
