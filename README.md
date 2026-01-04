@@ -130,8 +130,64 @@ GitHub Actions workflows run on pull requests and pushes:
 | `todo_check.yaml` | Scans for TODO/FIXME comments |
 | `required_files_check.yaml` | Verifies required files exist |
 | `release_from_pr.yaml` | Creates releases on PR merge to main |
+| `setup-repository.yaml` | Automatically configures repository settings |
+| `sync-labels.yaml` | Syncs issue labels from configuration |
 
 All workflows can be triggered manually via the Actions tab.
+
+### Automatic Repository Setup
+
+When you create a new repository from this template, the `setup-repository.yaml` workflow **attempts** to configure these settings:
+
+| Setting | Description |
+|---------|-------------|
+| Default branch | Set to `dev` |
+| Merge options | Squash and rebase enabled, merge commits disabled |
+| Branch cleanup | Auto-delete head branches after merge |
+| Auto-merge | Enabled for pull requests |
+| Issue labels | Synced from `.github/labels.yml` |
+| Branch protection | Require PR for `main`, dismiss stale reviews, status checks |
+| Tag protection | Restrict creation/update/deletion of `v*` tags |
+
+#### IMPORTANT: Setup Requires Manual Action
+
+**The default `GITHUB_TOKEN` cannot configure repository settings or rulesets.** To enable automatic setup:
+
+1. **Create a Personal Access Token (PAT)**:
+   - Go to https://github.com/settings/tokens/new
+   - Name it (e.g., "LaTeX Template Setup")
+   - Set expiration (e.g., 90 days)
+   - Select scopes:
+     - `repo` (Full control of private repositories)
+     - `admin:repo` (Full control of repository settings)
+   - Click "Generate token" and copy it
+
+2. **Add the token as a repository secret**:
+   - Go to your repository → Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `ADMIN_TOKEN`
+   - Value: Paste your PAT
+   - Click "Add secret"
+
+3. **Trigger the setup workflow**:
+   - Go to Actions → Setup Repository → Run workflow
+   - Or push a commit to trigger it automatically
+
+**Without `ADMIN_TOKEN`**: The workflow will show a warning and settings must be configured manually in repository Settings.
+
+**For private repositories**: Also requires GitHub Pro/Team/Enterprise plan for rulesets (branch/tag protection).
+
+#### Manual Configuration Required
+
+Some settings cannot be configured via the GitHub API and must be set manually:
+
+1. **Actions permissions** (Settings → Actions → General):
+   - Select "Allow PhilippXXY actions and reusable workflows"
+   - Or restrict to specific actions
+2. **Private vulnerability reporting** (Settings → Security): Enable if desired
+3. **Dependabot alerts** (Settings → Security): Enabled automatically
+
+See [.github/settings.yml](.github/settings.yml) for a complete reference of recommended settings.
 
 ## Development Container Details
 

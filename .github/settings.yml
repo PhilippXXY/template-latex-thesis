@@ -1,0 +1,119 @@
+# Repository Settings Configuration
+# This file documents the recommended settings for repositories created from this template.
+# The setup-repository.yaml workflow will apply these settings automatically.
+
+# =============================================================================
+# REPOSITORY SETTINGS (General)
+# =============================================================================
+repository:
+  # Features
+  has_issues: true
+  has_wiki: false
+  has_discussions: false
+  has_projects: false
+
+  # Template repository - enable this on the source template
+  is_template: true
+
+  # Merge options
+  allow_merge_commit: false      # Disabled - use squash or rebase
+  allow_squash_merge: true       # Enabled
+  allow_rebase_merge: true       # Enabled
+  squash_merge_commit_title: "PR_TITLE"
+  squash_merge_commit_message: "PR_BODY"
+
+  # Branch management
+  delete_branch_on_merge: true   # Auto-delete head branches
+  allow_auto_merge: true         # Allow auto-merge
+  allow_update_branch: true      # Allow updating PR branches
+
+# =============================================================================
+# ACTIONS SETTINGS
+# =============================================================================
+actions:
+  # Allow only actions from this organization/user
+  allowed_actions: "selected"
+  # Artifact and log retention: 90 days (default)
+  artifact_retention_days: 90
+
+# =============================================================================
+# ADVANCED SECURITY
+# =============================================================================
+security:
+  # Private vulnerability reporting - enabled
+  private_vulnerability_reporting: true
+  # Dependency graph - enabled
+  dependency_graph: true
+  # Dependabot - configured via dependabot.yml
+
+# =============================================================================
+# BRANCH PROTECTION (main branch)
+# =============================================================================
+# Note: This uses the legacy branch protection API.
+# The workflow uses the newer Rulesets API instead.
+branch_protection:
+  main:
+    # Require pull request before merging
+    required_pull_request_reviews:
+      required_approving_review_count: 0
+      dismiss_stale_reviews: true
+      require_code_owner_reviews: true
+      require_last_push_approval: true
+    # Prevent force pushes
+    allow_force_pushes: false
+    allow_deletions: false
+
+# =============================================================================
+# RULESETS (applied via workflow)
+# =============================================================================
+rulesets:
+  # Branch ruleset for main branch
+  - name: "Protect main branch"
+    target: branch
+    enforcement: active
+    conditions:
+      ref_name:
+        include:
+          - "refs/heads/main"
+    rules:
+      - type: pull_request
+        parameters:
+          required_approving_review_count: 0
+          dismiss_stale_reviews_on_push: true
+          require_code_owner_review: true
+          require_last_push_approval: true
+      - type: required_status_checks
+        parameters:
+          strict_required_status_checks_policy: false
+          required_status_checks:
+            - context: "PR Checks / LaTeX Compile"
+            - context: "PR Checks / Spell Check"
+            - context: "PR Checks / Hygiene Checks"
+            - context: "PR Checks / TODO Check"
+            - context: "PR Checks / File Quality"
+            - context: "PR Checks / Required Files"
+      - type: non_fast_forward
+
+  # Tag ruleset for version tags
+  - name: "Protect version tags"
+    target: tag
+    enforcement: active
+    conditions:
+      ref_name:
+        include:
+          - "refs/tags/v*"
+    rules:
+      - type: creation       # Restrict who can create tags
+      - type: update         # Restrict who can update tags
+      - type: deletion       # Restrict who can delete tags
+
+# =============================================================================
+# LABELS
+# =============================================================================
+# Labels are managed by sync-labels.yaml workflow
+# See .github/labels.yml for label definitions
+
+# =============================================================================
+# DEPENDABOT
+# =============================================================================
+# Dependabot configuration is in .github/dependabot.yml

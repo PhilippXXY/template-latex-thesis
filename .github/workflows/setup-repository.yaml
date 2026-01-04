@@ -1,0 +1,283 @@
+# Workflow to automatically configure repository settings when created from template.
+# Runs once when the repository is created from the template.
+#
+# LIMITATIONS:
+# The default GITHUB_TOKEN cannot modify repository settings or create rulesets.
+# For full automatic setup, users must create an ADMIN_TOKEN secret with a PAT
+# that has 'repo' and 'admin:repo' scopes.
+#
+# Without ADMIN_TOKEN:
+# - Repository settings (merge options, default branch) will NOT be configured
+# - Branch protection / rulesets will NOT be configured
+# - Only labels will be synced (via sync-labels workflow)
+#
+# Private repos also require GitHub Pro/Team/Enterprise for rulesets.
+name: Setup Repository
+
+on:
+  # Triggers when a branch is created (happens when repo is created from template)
+  create:
+  # Allow manual trigger for retries
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    # Only run if:
+    # - Not the template repository itself
+    # - For create event: only on branch creation (not tags), and only on default branch
+    # - For workflow_dispatch: always run
+    if: |
+      github.repository != 'PhilippXXY/template-latex-thesis' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.ref_type == 'branch' && github.event.ref == 'dev')
+      )
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if setup already done
+        id: check
+        run: |
+          if [ -f ".github/.setup-complete" ]; then
+            echo "setup_done=true" >> $GITHUB_OUTPUT
+          else
+            echo "setup_done=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup repository settings
+        id: repo_settings
+        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          echo "Configuring repository settings..."
+
+          # Enable useful repository features and set default branch to dev
+          if gh api repos/${{ github.repository }} \
+            --method PATCH \
+            -f has_issues=true \
+            -f has_wiki=false \
+            -f default_branch=dev \
+            -F allow_merge_commit=false \
+            -F allow_squash_merge=true \
+            -F allow_rebase_merge=true \
+            -F delete_branch_on_merge=true \
+            -F allow_auto_merge=true \
+            -F allow_update_branch=true; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "Repository settings configured (default branch: dev)"
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "Failed to configure repository settings"
+          fi
+
+      - name: Skip repo settings - no ADMIN_TOKEN
+        id: repo_settings_skip
+        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN == ''
+        run: |
+          echo "::warning::ADMIN_TOKEN secret not found. Repository settings cannot be configured."
+          echo "To enable automatic setup, create a Personal Access Token with 'repo' and 'admin:repo' scopes"
+          echo "and add it as a repository secret named ADMIN_TOKEN."
+          echo "skipped=true" >> $GITHUB_OUTPUT
+
+      - name: Setup branch protection
+        id: rulesets
+        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          echo "Attempting to configure branch protection..."
+          RULESETS_SUCCESS=true
+
+          # Check if we can access rulesets (requires admin permissions)
+          if ! gh api repos/${{ github.repository }}/rulesets --silent 2>/dev/null; then
+            echo "Cannot access rulesets API. This could mean:"
+            echo "   - Private repository on Free plan (rulesets require Pro/Team/Enterprise)"
+            echo "   - Insufficient permissions"
+            echo ""
+            echo "To enable branch protection, either:"
+            echo "   1. Make the repository public, OR"
+            echo "   2. Upgrade to GitHub Pro/Team, OR"
+            echo "   3. Add an ADMIN_TOKEN secret with a PAT that has 'repo' and 'admin:repo' scopes"
+            echo ""
+            echo "Skipping branch protection setup..."
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if branch ruleset already exists
+          EXISTING_BRANCH=$(gh api repos/${{ github.repository }}/rulesets --jq '.[] | select(.name == "Protect main branch") | .id' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_BRANCH" ]; then
+            echo "Ruleset 'Protect main branch' already exists (ID: $EXISTING_BRANCH), skipping..."
+          else
+            # Create branch protection ruleset using JSON input for complex structure
+            # Note: Status check contexts use format "Workflow Name / Job Name"
+            cat > /tmp/branch-ruleset.json << 'EOF'
+          {
+            "name": "Protect main branch",
+            "target": "branch",
+            "enforcement": "active",
+            "conditions": {
+              "ref_name": {
+                "include": ["refs/heads/main"],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": true,
+                  "require_code_owner_review": true,
+                  "require_last_push_approval": true,
+                  "required_review_thread_resolution": false
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "required_status_checks": [
+                    {"context": "File Quality / check"},
+                    {"context": "LaTeX Compile / build"},
+                    {"context": "Required Files / check"},
+                    {"context": "TODO Check / check"},
+                    {"context": "Spell Check / spell-check"},
+                    {"context": "Hygiene Checks / hygiene"}
+                  ]
+                }
+              },
+              {
+                "type": "non_fast_forward"
+              }
+            ],
+            "bypass_actors": []
+          }
+          EOF
+
+            if gh api repos/${{ github.repository }}/rulesets \
+              --method POST \
+              --input /tmp/branch-ruleset.json; then
+              echo "Branch ruleset created successfully"
+            else
+              echo "Failed to create branch ruleset"
+              RULESETS_SUCCESS=false
+            fi
+          fi
+
+          # Check if tag ruleset already exists
+          EXISTING_TAG=$(gh api repos/${{ github.repository }}/rulesets --jq '.[] | select(.name == "Protect version tags") | .id' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_TAG" ]; then
+            echo "Ruleset 'Protect version tags' already exists (ID: $EXISTING_TAG), skipping..."
+          else
+            # Create tag protection ruleset for version tags (v*)
+            cat > /tmp/tag-ruleset.json << 'EOF'
+          {
+            "name": "Protect version tags",
+            "target": "tag",
+            "enforcement": "active",
+            "conditions": {
+              "ref_name": {
+                "include": ["refs/tags/v*"],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "creation"
+              },
+              {
+                "type": "update"
+              },
+              {
+                "type": "deletion"
+              }
+            ],
+            "bypass_actors": []
+          }
+          EOF
+
+            if gh api repos/${{ github.repository }}/rulesets \
+              --method POST \
+              --input /tmp/tag-ruleset.json; then
+              echo "Tag ruleset created successfully"
+            else
+              echo "Failed to create tag ruleset"
+              RULESETS_SUCCESS=false
+            fi
+          fi
+
+          echo "success=$RULESETS_SUCCESS" >> $GITHUB_OUTPUT
+
+      - name: Mark setup as complete
+        # Only mark complete if repository settings were configured successfully
+        if: steps.check.outputs.setup_done == 'false' && steps.repo_settings.outputs.success == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          RULESETS_STATUS="${{ steps.rulesets.outputs.success }}"
+
+          # Create completion marker with status
+          cat > .github/.setup-complete << EOF
+          Repository setup completed on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          Repository settings: configured
+          Rulesets: ${RULESETS_STATUS:-skipped}
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/.setup-complete
+          git commit -m "chore: mark repository setup as complete" || echo "No changes to commit"
+          git push || echo "Nothing to push"
+
+          echo ""
+          echo "Repository setup complete!"
+          echo ""
+          echo "The following was configured:"
+          echo "  - Default branch set to 'dev'"
+          echo "  - Repository settings (merge options, auto-delete branches)"
+          echo "  - Labels (via sync-labels workflow)"
+          if [ "$RULESETS_STATUS" = "true" ]; then
+            echo "  - Branch protection for main (require PR, status checks)"
+            echo "  - Tag protection for v* tags (restrict creation/update/deletion)"
+          else
+            echo "  - Branch/tag protection: SKIPPED (requires public repo or Pro plan)"
+          fi
+
+      - name: Setup incomplete - no ADMIN_TOKEN
+        if: steps.check.outputs.setup_done == 'false' && steps.repo_settings_skip.outputs.skipped == 'true'
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "REPOSITORY SETUP INCOMPLETE"
+          echo "=============================================="
+          echo ""
+          echo "The ADMIN_TOKEN secret is required to configure:"
+          echo "  - Repository settings (merge options, default branch)"
+          echo "  - Branch protection rules"
+          echo "  - Tag protection rules"
+          echo ""
+          echo "To complete setup:"
+          echo "  1. Create a Personal Access Token (PAT) at https://github.com/settings/tokens"
+          echo "     with 'repo' and 'admin:repo' scopes"
+          echo "  2. Add it as a repository secret named 'ADMIN_TOKEN'"
+          echo "  3. Re-run this workflow manually"
+          echo ""
+          echo "Alternatively, configure these settings manually in repository Settings."
+          echo ""
+
+      - name: Setup failed
+        if: steps.check.outputs.setup_done == 'false' && steps.repo_settings.outputs.success == 'false'
+        run: |
+          echo "::error::Repository setup failed. Check the logs above for details."
+          echo "You can re-run this workflow manually after fixing the issue."
+          exit 1
