@@ -45,3 +45,12 @@ thesis/*.pdf
 
 # VS Code
 .vscode/
+
+# Python (for pre-commit)
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+.eggs/
+venv/
+.venv/
