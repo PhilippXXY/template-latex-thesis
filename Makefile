@@ -113,17 +113,40 @@ check:
 	@echo "$(C_GREEN)Checks complete$(C_NC)"
 
 stats:
-	@echo "$(C_BOLD)Document Statistics$(C_NC)"
+	@echo "$(C_BOLD)$(C_CYAN)Document Statistics$(C_NC)"
 	@echo ""
 	@if command -v texcount >/dev/null 2>&1; then \
-		texcount -inc -brief $(MAIN_DIR)/main.tex 2>/dev/null || echo "Could not count words"; \
+		cd $(MAIN_DIR) && { \
+			OUTPUT=$$(texcount -inc -brief main.tex 2>/dev/null); \
+			TOTAL=$$(echo "$$OUTPUT" | grep "File(s) total" | grep -oP '\d+(?=\+)' | head -1); \
+			echo "$(C_BOLD)$(C_GREEN)Total Words:$(C_NC) $$TOTAL"; \
+			echo ""; \
+			echo "$$OUTPUT" | grep "Included file:" | while IFS= read -r line; do \
+				FILE=$$(echo "$$line" | sed 's/.*Included file: \.\/\(.*\)/\1/'); \
+				WORDS=$$(echo "$$line" | sed 's/^\([0-9]*\)+.*/\1/'); \
+				printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "$$FILE" "$$WORDS"; \
+			done; \
+		}; \
 	else \
-		echo "texcount not installed"; \
+		echo "$(C_YELLOW)texcount not installed$(C_NC)"; \
 	fi
 	@echo ""
-	@echo "Files: $$(echo $(TEX_FILES) | wc -w | tr -d ' ') .tex, $$(echo $(BIB_FILES) | wc -w | tr -d ' ') .bib"
-	@FIGS=$$(find $(MAIN_DIR)/figures -type f 2>/dev/null | wc -l | tr -d ' '); \
-	echo "Figures: $$FIGS"
+	@TEXCOUNT=$$(echo $(TEX_FILES) | wc -w | tr -d ' '); \
+	FIGCOUNT=$$(find $(MAIN_DIR)/figures -type f 2>/dev/null | wc -l | tr -d ' '); \
+	TABCOUNT=$$(find $(MAIN_DIR)/tables -type f 2>/dev/null | wc -l | tr -d ' '); \
+	echo "$(C_BOLD)$(C_BLUE)Files:$(C_NC)"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "LaTeX files:" "$$TEXCOUNT"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "Figures:" "$$FIGCOUNT"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "Tables:" "$$TABCOUNT"
+	@echo ""
+	@LITCOUNT=$$(grep -h '^\s*@' $(MAIN_DIR)/bibliography/literature.bib 2>/dev/null | wc -l | tr -d ' '); \
+	ABBRCOUNT=$$(grep -h '^\s*@abbreviation' $(MAIN_DIR)/glossary/abbreviations.bib 2>/dev/null | wc -l | tr -d ' '); \
+	SYMCOUNT=$$(grep -h '^\s*@symbol' $(MAIN_DIR)/glossary/symbols.bib 2>/dev/null | wc -l | tr -d ' '); \
+	echo "$(C_BOLD)$(C_MAGENTA)Bibliography & Glossary:$(C_NC)"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "References:" "$$LITCOUNT"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "Abbreviations:" "$$ABBRCOUNT"; \
+	printf "  $(C_DIM)%-40s$(C_NC) %4s\n" "Symbols:" "$$SYMCOUNT"
+
 
 # ==============================================================================
 # Setup
