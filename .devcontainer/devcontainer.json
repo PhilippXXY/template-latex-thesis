@@ -1,0 +1,137 @@
+{
+  "name": "LaTeX Thesis Template",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "aaron-bond.better-comments",
+        "Christian-Kohler.path-intellisense",
+        "EditorConfig.EditorConfig",
+        "esbenp.prettier-vscode",
+        "James-Yu.latex-workshop",
+        "jebbs.plantuml",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "raykr.zotex",
+        "redhat.vscode-yaml",
+        "shd101wyy.markdown-preview-enhanced",
+        "valentjn.vscode-ltex",
+        "yzhang.markdown-all-in-one"
+      ],
+      "settings": {
+        // LaTeX Workshop settings
+        "latex-workshop.latex.autoBuild.run": "onSave",
+        "latex-workshop.latex.recipes": [
+          {
+            "name": "latexmk (make)",
+            "tools": ["make-pdf"]
+          },
+          {
+            "name": "pdflatex (quick)",
+            "tools": ["pdflatex"]
+          }
+        ],
+        "latex-workshop.latex.tools": [
+          {
+            "name": "make-pdf",
+            "command": "make",
+            "args": ["-C", "%WORKSPACE_FOLDER%", "pdf"],
+            "env": {}
+          },
+          {
+            "name": "pdflatex",
+            "command": "pdflatex",
+            "args": [
+              "-synctex=1",
+              "-interaction=nonstopmode",
+              "-file-line-error",
+              "%DOC%"
+            ],
+            "env": {}
+          }
+        ],
+        "latex-workshop.latex.outDir": "%DIR%",
+        "latex-workshop.view.pdf.viewer": "tab",
+        "latex-workshop.latex.autoClean.run": "onBuilt",
+        "latex-workshop.latex.clean.fileTypes": [
+          "*.aux",
+          "*.bbl",
+          "*.blg",
+          "*.idx",
+          "*.ind",
+          "*.lof",
+          "*.lot",
+          "*.out",
+          "*.toc",
+          "*.acn",
+          "*.acr",
+          "*.alg",
+          "*.glg",
+          "*.glo",
+          "*.gls",
+          "*.glsdefs",
+          "*.ist",
+          "*.fls",
+          "*.log",
+          "*.fdb_latexmk",
+          "*.snm",
+          "*.nav",
+          "*.vrb",
+          "*.run.xml",
+          "*.bcf",
+          "*.synctex.gz"
+        ],
+
+        // LTeX (LanguageTool) settings
+        "ltex.language": "en-US",
+        "ltex.additionalRules.enablePickyRules": true,
+        "ltex.latex.commands": {
+          "\\gls{}": "dummy",
+          "\\Gls{}": "dummy",
+          "\\glspl{}": "dummy",
+          "\\cite{}": "dummy",
+          "\\citep{}": "dummy",
+          "\\citet{}": "dummy",
+          "\\parencite{}": "dummy",
+          "\\textcite{}": "dummy",
+          "\\autocite{}": "dummy",
+          "\\ref{}": "dummy",
+          "\\eqref{}": "dummy",
+          "\\pageref{}": "dummy",
+          "\\label{}": "dummy"
+        },
+
+        // Editor settings
+        "editor.wordWrap": "on",
+        "editor.formatOnSave": false,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+
+        // File associations
+        "files.associations": {
+          "*.tex": "latex",
+          "*.bib": "bibtex",
+          "*.cls": "latex",
+          "*.sty": "latex",
+          "latexmkrc": "perl"
+        },
+
+        // PlantUML settings
+        "plantuml.jar": "/usr/local/bin/plantuml.jar",
+
+        // Git settings
+        "git.autofetch": true
+      }
+    }
+  },
+  "forwardPorts": [],
+  "postCreateCommand": "make setup",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  }
+}
