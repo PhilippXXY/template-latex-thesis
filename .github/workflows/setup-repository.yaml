@@ -50,9 +50,24 @@ jobs:
             echo "setup_done=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check for ADMIN_TOKEN
+        id: token_check
+        if: steps.check.outputs.setup_done == 'false'
+        env:
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          if [ -n "$ADMIN_TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "::warning::ADMIN_TOKEN secret not found. Repository settings cannot be configured."
+            echo "To enable automatic setup, create a Personal Access Token with 'repo' and 'admin:repo' scopes"
+            echo "and add it as a repository secret named ADMIN_TOKEN."
+          fi
+
       - name: Setup repository settings
         id: repo_settings
-        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN != ''
+        if: steps.check.outputs.setup_done == 'false' && steps.token_check.outputs.has_token == 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
@@ -77,18 +92,9 @@ jobs:
             echo "Failed to configure repository settings"
           fi
 
-      - name: Skip repo settings - no ADMIN_TOKEN
-        id: repo_settings_skip
-        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN == ''
-        run: |
-          echo "::warning::ADMIN_TOKEN secret not found. Repository settings cannot be configured."
-          echo "To enable automatic setup, create a Personal Access Token with 'repo' and 'admin:repo' scopes"
-          echo "and add it as a repository secret named ADMIN_TOKEN."
-          echo "skipped=true" >> $GITHUB_OUTPUT
-
       - name: Setup branch protection
         id: rulesets
-        if: steps.check.outputs.setup_done == 'false' && secrets.ADMIN_TOKEN != ''
+        if: steps.check.outputs.setup_done == 'false' && steps.token_check.outputs.has_token == 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
@@ -254,7 +260,7 @@ jobs:
           fi
 
       - name: Setup incomplete - no ADMIN_TOKEN
-        if: steps.check.outputs.setup_done == 'false' && steps.repo_settings_skip.outputs.skipped == 'true'
+        if: steps.check.outputs.setup_done == 'false' && steps.token_check.outputs.has_token == 'false'
         run: |
           echo ""
           echo "=============================================="
