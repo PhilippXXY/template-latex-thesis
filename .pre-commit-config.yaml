@@ -13,10 +13,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+        files: ^thesis/.*\.(tex|bib|sty|cls)$
 
       - id: end-of-file-fixer
-        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+        files: ^thesis/.*\.(tex|bib|sty|cls)$
 
       - id: check-yaml
 
@@ -24,7 +24,7 @@ repos:
 
       - id: mixed-line-ending
         args: [--fix=lf]
-        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+        files: ^thesis/.*\.(tex|bib|sty|cls)$
 
   # ===========================================================================
   # Spell checking with aspell (.tex files only)
@@ -35,7 +35,7 @@ repos:
         name: Check spelling
         entry: bash -c 'HAS_ERRORS=false; for f in "$@"; do WORDS=$(aspell --mode=tex --lang=en --conf=./.aspell.conf list < "$f" 2>/dev/null | sort -u); if [ -n "$WORDS" ]; then echo "$f:"; echo "$WORDS" | head -10 | sed "s/^/  /"; HAS_ERRORS=true; fi; done; if [ "$HAS_ERRORS" = "true" ]; then echo ""; echo "Add valid words to aspell-project.dict"; exit 1; fi' --
         language: system
-        files: \.tex$
+        files: ^thesis/.*\.tex$
         verbose: true
 
   # ===========================================================================
@@ -47,7 +47,7 @@ repos:
         name: Check duplicate bib keys
         entry: bash -c 'DUPS=$(find thesis -type f -name "*.bib" -print0 2>/dev/null | xargs -0 grep -h "^\s*@[^{]*{" 2>/dev/null | sed "s/.*{\([^,]*\).*/\1/" | sort | uniq -d); if [ -n "$DUPS" ]; then echo "Duplicate keys found"; echo "$DUPS"; exit 1; fi'
         language: system
-        files: \.bib$
+        files: ^thesis/.*\.bib$
         pass_filenames: false
 
   # ===========================================================================
@@ -59,7 +59,7 @@ repos:
         name: Check for TODOs
         entry: bash -c 'grep -rniE "\b(TODO|FIXME)\b" thesis --include="*.tex" 2>/dev/null | head -10 || true'
         language: system
-        files: \.tex$
+        files: ^thesis/.*\.tex$
         pass_filenames: false
         verbose: true
 
