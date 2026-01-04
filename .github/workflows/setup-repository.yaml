@@ -84,7 +84,8 @@ jobs:
             -F allow_rebase_merge=true \
             -F delete_branch_on_merge=true \
             -F allow_auto_merge=true \
-            -F allow_update_branch=true; then
+            -F allow_update_branch=true \
+            -F enable_copilot_code_review=true; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "Repository settings configured (default branch: dev)"
           else
@@ -144,13 +145,13 @@ jobs:
                   "dismiss_stale_reviews_on_push": true,
                   "require_code_owner_review": true,
                   "require_last_push_approval": true,
-                  "required_review_thread_resolution": false
+                  "required_review_thread_resolution": true
                 }
               },
               {
                 "type": "required_status_checks",
                 "parameters": {
-                  "strict_required_status_checks_policy": false,
+                  "strict_required_status_checks_policy": true,
                   "required_status_checks": [
                     {"context": "File Quality / check"},
                     {"context": "LaTeX Compile / build"},
@@ -160,6 +161,9 @@ jobs:
                     {"context": "Hygiene Checks / hygiene"}
                   ]
                 }
+              },
+              {
+                "type": "required_linear_history"
               },
               {
                 "type": "non_fast_forward"

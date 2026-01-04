@@ -27,6 +27,9 @@ repository:
   allow_auto_merge: true         # Allow auto-merge
   allow_update_branch: true      # Allow updating PR branches
 
+  # Copilot code review
+  enable_copilot_code_review: true  # Automatically request Copilot code review on PRs
+
 # =============================================================================
 # ACTIONS SETTINGS
 # =============================================================================
@@ -59,6 +62,7 @@ branch_protection:
       dismiss_stale_reviews: true
       require_code_owner_reviews: true
       require_last_push_approval: true
+      required_review_thread_resolution: true
     # Prevent force pushes
     allow_force_pushes: false
     allow_deletions: false
@@ -82,9 +86,10 @@ rulesets:
           dismiss_stale_reviews_on_push: true
           require_code_owner_review: true
           require_last_push_approval: true
+          required_review_thread_resolution: true
       - type: required_status_checks
         parameters:
-          strict_required_status_checks_policy: false
+          strict_required_status_checks_policy: true
           required_status_checks:
             - context: "PR Checks / LaTeX Compile"
             - context: "PR Checks / Spell Check"
@@ -92,6 +97,7 @@ rulesets:
             - context: "PR Checks / TODO Check"
             - context: "PR Checks / File Quality"
             - context: "PR Checks / Required Files"
+      - type: required_linear_history
       - type: non_fast_forward
 
   # Tag ruleset for version tags
