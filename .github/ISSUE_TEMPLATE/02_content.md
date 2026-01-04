@@ -24,4 +24,3 @@ assignees: PhilippXXY
 
 ### Open Questions
 <!-- List any open questions, uncertainties, or additional research needed to fully integrate this content into the thesis. -->
-

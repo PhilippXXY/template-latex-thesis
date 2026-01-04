@@ -1,3 +1,6 @@
+# Reusable workflow to verify that required files and directories exist
+# - Checks for essential LaTeX project files (main.tex, Makefile, etc.)
+# - Validates required directory structure
 name: Required Files Check
 
 on:

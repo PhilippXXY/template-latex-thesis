@@ -1,10 +1,12 @@
+# Main workflow that orchestrates all quality checks for pull requests
+# Runs LaTeX compilation, spell check, hygiene checks, TODO checks, file quality, and required files checks
 name: PR Checks
 
 on:
   pull_request:
 
 concurrency:
-  group: pr-checks-${{ github.head_ref }}
+  group: pr-checks-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -16,6 +18,22 @@ jobs:
       main_tex_for_jobname: thesis/main.tex
       fail_on_double_questionmark: true
       upload_pdf: false
+
+  spell-check:
+    name: Spell Check
+    uses: ./.github/workflows/spell_check.yaml
+    with:
+      fail_on_errors: false
+      language: en
+
+  hygiene:
+    name: Hygiene Checks
+    uses: ./.github/workflows/hygiene_checks.yaml
+    with:
+      check_unused_bib: true
+      check_duplicate_bib: true
+      check_undefined_glossary: true
+      fail_on_critical: true
 
   todo-check:
     name: TODO Check

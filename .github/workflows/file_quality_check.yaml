@@ -1,3 +1,7 @@
+# Reusable workflow to check file quality issues:
+# - Trailing whitespace
+# - Missing final newlines
+# - Tab characters (optional)
 name: File Quality Check
 
 on:

@@ -1,0 +1,85 @@
+# Pre-commit hooks configuration for LaTeX Thesis Template
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  python: python3
+
+repos:
+  # ===========================================================================
+  # General file quality checks
+  # ===========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+
+      - id: end-of-file-fixer
+        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+
+      - id: check-yaml
+
+      - id: check-merge-conflict
+
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        files: \.(tex|bib|sty|cls|md|yaml|yml)$
+
+  # ===========================================================================
+  # Spell checking with aspell (.tex files only)
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: aspell-check
+        name: Check spelling
+        entry: bash -c 'HAS_ERRORS=false; for f in "$@"; do WORDS=$(aspell --mode=tex --lang=en --conf=./.aspell.conf list < "$f" 2>/dev/null | sort -u); if [ -n "$WORDS" ]; then echo "$f:"; echo "$WORDS" | head -10 | sed "s/^/  /"; HAS_ERRORS=true; fi; done; if [ "$HAS_ERRORS" = "true" ]; then echo ""; echo "Add valid words to aspell-project.dict"; exit 1; fi' --
+        language: system
+        files: \.tex$
+        verbose: true
+
+  # ===========================================================================
+  # Bibliography checks
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: check-duplicate-bib-keys
+        name: Check duplicate bib keys
+        entry: bash -c 'DUPS=$(find thesis -type f -name "*.bib" -print0 2>/dev/null | xargs -0 grep -h "^\s*@[^{]*{" 2>/dev/null | sed "s/.*{\([^,]*\).*/\1/" | sort | uniq -d); if [ -n "$DUPS" ]; then echo "Duplicate keys found"; echo "$DUPS"; exit 1; fi'
+        language: system
+        files: \.bib$
+        pass_filenames: false
+
+  # ===========================================================================
+  # TODO/FIXME check
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: check-todos
+        name: Check for TODOs
+        entry: bash -c 'grep -rniE "\b(TODO|FIXME)\b" thesis --include="*.tex" 2>/dev/null | head -10 || true'
+        language: system
+        files: \.tex$
+        pass_filenames: false
+        verbose: true
+
+  # ===========================================================================
+  # Quick compile test (pre-push only)
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: latex-quick-compile
+        name: Quick compile test
+        entry: make quick
+        language: system
+        files: \.tex$
+        pass_filenames: false
+        stages: [pre-push]
+
+# ===========================================================================
+# CI configuration
+# ===========================================================================
+ci:
+  autofix_prs: true
+  autoupdate_schedule: weekly
+  skip: [latex-quick-compile]

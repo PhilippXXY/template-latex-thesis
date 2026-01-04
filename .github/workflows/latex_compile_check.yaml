@@ -1,3 +1,7 @@
+# Reusable workflow to compile LaTeX documents and check for errors
+# - Builds PDF using specified make target
+# - Checks for missing references (??)
+# - Optionally uploads PDF as artifact
 name: LaTeX Compile Check
 
 on:
