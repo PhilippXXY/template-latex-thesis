@@ -45,7 +45,7 @@ repos:
     hooks:
       - id: check-duplicate-bib-keys
         name: Check duplicate bib keys
-        entry: bash -c 'DUPS=$(grep -h "^\s*@[^{]*{" thesis/**/*.bib 2>/dev/null | sed "s/.*{\([^,]*\).*/\1/" | sort | uniq -d); if [ -n "$DUPS" ]; then echo "Duplicate keys found"; echo "$DUPS"; exit 1; fi'
+        entry: bash -c 'DUPS=$(find thesis -type f -name "*.bib" -print0 2>/dev/null | xargs -0 grep -h "^\s*@[^{]*{" 2>/dev/null | sed "s/.*{\([^,]*\).*/\1/" | sort | uniq -d); if [ -n "$DUPS" ]; then echo "Duplicate keys found"; echo "$DUPS"; exit 1; fi'
         language: system
         files: \.bib$
         pass_filenames: false
