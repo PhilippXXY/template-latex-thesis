@@ -1,0 +1,202 @@
+name: Hygiene Checks
+
+on:
+  workflow_call:
+    inputs:
+      check_unused_bib:
+        description: "Check for unused bibliography entries"
+        type: boolean
+        default: true
+      check_duplicate_bib:
+        description: "Check for duplicate bibliography keys"
+        type: boolean
+        default: true
+      check_undefined_glossary:
+        description: "Check for undefined glossary entries"
+        type: boolean
+        default: true
+      check_unresolved_citations:
+        description: "Check for unresolved citations (requires log file)"
+        type: boolean
+        default: false
+      fail_on_critical:
+        description: "Fail on critical issues (duplicates, unresolved)"
+        type: boolean
+        default: true
+
+  workflow_dispatch:
+    inputs:
+      check_unused_bib:
+        description: "Check for unused bibliography entries"
+        type: boolean
+        default: true
+      check_duplicate_bib:
+        description: "Check for duplicate bibliography keys"
+        type: boolean
+        default: true
+      check_undefined_glossary:
+        description: "Check for undefined glossary entries"
+        type: boolean
+        default: true
+      check_unresolved_citations:
+        description: "Check for unresolved citations"
+        type: boolean
+        default: false
+      fail_on_critical:
+        description: "Fail on critical issues"
+        type: boolean
+        default: true
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run hygiene checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== LaTeX Hygiene Checks ==="
+          echo ""
+
+          CRITICAL_ERRORS=false
+          WARNINGS=false
+
+          # Find files
+          TEX_FILES=$(find thesis -name "*.tex" -type f)
+          BIB_FILES=$(find thesis -name "*.bib" -type f)
+
+          # =================================================================
+          # Check for duplicate bibliography keys
+          # =================================================================
+          if [ "${{ inputs.check_duplicate_bib }}" = "true" ]; then
+            echo "=== Checking for duplicate bibliography keys ==="
+
+            DUPLICATES=$(grep -h '^\s*@[^{]*{' $BIB_FILES 2>/dev/null | \
+              sed 's/.*{\s*\([^,]*\).*/\1/' | sort | uniq -d || true)
+
+            if [ -n "$DUPLICATES" ]; then
+              echo "Duplicate bibliography keys found:"
+              echo "$DUPLICATES" | sed 's/^/  - /'
+              CRITICAL_ERRORS=true
+
+              # Add GitHub annotations
+              while IFS= read -r key; do
+                for bibfile in $BIB_FILES; do
+                  if grep -q "@.*{$key," "$bibfile" 2>/dev/null; then
+                    LINE=$(grep -n "@.*{$key," "$bibfile" | head -1 | cut -d: -f1)
+                    echo "::error file=$bibfile,line=$LINE::Duplicate bibliography key: $key"
+                  fi
+                done
+              done <<< "$DUPLICATES"
+            else
+              echo "No duplicate bibliography keys"
+            fi
+            echo ""
+          fi
+
+          # =================================================================
+          # Check for unused bibliography entries
+          # =================================================================
+          if [ "${{ inputs.check_unused_bib }}" = "true" ]; then
+            echo "=== Checking for unused bibliography entries ==="
+
+            # Extract all bib keys (excluding glossary files)
+            LIT_BIB=$(find thesis/bibliography -name "*.bib" -type f 2>/dev/null || true)
+            if [ -n "$LIT_BIB" ]; then
+              BIB_KEYS=$(grep -h '^\s*@[^{]*{' $LIT_BIB 2>/dev/null | \
+                sed 's/.*{\s*\([^,]*\).*/\1/' | sort -u || true)
+
+              # Extract cited keys from tex files
+              CITED_KEYS=$(grep -ohE '\\(cite|citep|citet|parencite|textcite|autocite|Cite|Citep|Citet)[^{]*\{[^}]+\}' $TEX_FILES 2>/dev/null | \
+                sed 's/.*{\([^}]*\)}/\1/' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u || true)
+
+              UNUSED=""
+              for key in $BIB_KEYS; do
+                if ! echo "$CITED_KEYS" | grep -qx "$key"; then
+                  UNUSED="${UNUSED}${key}\n"
+                fi
+              done
+
+              if [ -n "$UNUSED" ]; then
+                COUNT=$(echo -e "$UNUSED" | grep -c . || echo 0)
+                echo "Found $COUNT unused bibliography entries:"
+                echo -e "$UNUSED" | head -10 | sed 's/^/  - /'
+                if [ "$COUNT" -gt 10 ]; then
+                  echo "  ... and $((COUNT - 10)) more"
+                fi
+                WARNINGS=true
+              else
+                echo "No unused bibliography entries"
+              fi
+            else
+              echo "ℹ No bibliography files found in thesis/bibliography/"
+            fi
+            echo ""
+          fi
+
+          # =================================================================
+          # Check for undefined glossary entries
+          # =================================================================
+          if [ "${{ inputs.check_undefined_glossary }}" = "true" ]; then
+            echo "=== Checking for undefined glossary entries ==="
+
+            # Extract used glossary entries
+            USED_GLOSSARY=$(grep -ohE '\\(gls|Gls|GLS|glspl|Glspl|GLSpl|glslink|glsdisp|acrshort|acrlong|acrfull)\{[^}]+\}' $TEX_FILES 2>/dev/null | \
+              sed 's/.*{\([^}]*\)}/\1/' | sort -u || true)
+
+            # Extract defined entries from glossary .bib files
+            GLOSSARY_BIB=$(find thesis/glossary -name "*.bib" -type f 2>/dev/null || true)
+            if [ -n "$GLOSSARY_BIB" ]; then
+              DEFINED_ENTRIES=$(grep -h '^\s*@' $GLOSSARY_BIB 2>/dev/null | \
+                sed 's/.*{\s*\([^,]*\).*/\1/' | sort -u || true)
+
+              UNDEFINED=""
+              for entry in $USED_GLOSSARY; do
+                if ! echo "$DEFINED_ENTRIES" | grep -qx "$entry"; then
+                  UNDEFINED="${UNDEFINED}${entry}\n"
+                fi
+              done
+
+              if [ -n "$UNDEFINED" ]; then
+                COUNT=$(echo -e "$UNDEFINED" | grep -c . || echo 0)
+                echo "Found $COUNT potentially undefined glossary entries:"
+                echo -e "$UNDEFINED" | sed 's/^/  - /'
+                WARNINGS=true
+
+                # Add GitHub annotations
+                while IFS= read -r entry; do
+                  [ -z "$entry" ] && continue
+                  for texfile in $TEX_FILES; do
+                    if grep -q "\\\\gls.*{$entry}" "$texfile" 2>/dev/null; then
+                      LINE=$(grep -n "\\\\gls.*{$entry}" "$texfile" | head -1 | cut -d: -f1)
+                      echo "::warning file=$texfile,line=$LINE::Potentially undefined glossary entry: $entry"
+                      break
+                    fi
+                  done
+                done <<< "$(echo -e "$UNDEFINED")"
+              else
+                echo "No undefined glossary entries detected"
+              fi
+            else
+              echo "ℹ No glossary files found"
+            fi
+            echo ""
+          fi
+
+          # =================================================================
+          # Summary
+          # =================================================================
+          echo "=== Summary ==="
+          if [ "$CRITICAL_ERRORS" = "true" ]; then
+            echo "Critical errors found"
+            if [ "${{ inputs.fail_on_critical }}" = "true" ]; then
+              exit 1
+            fi
+          elif [ "$WARNINGS" = "true" ]; then
+            echo "Warnings found (non-critical)"
+          else
+            echo "All hygiene checks passed"
+          fi
